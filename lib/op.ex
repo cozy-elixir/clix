@@ -302,83 +302,16 @@ defmodule OP do
     end
   end
 
-  @doc """
-  Similar to `parse/2` but only parses the head of `argv`;
-  as soon as it finds a non-switch, it stops parsing.
-
-  See `parse/2` for more information.
-
-  ## Example
-
-      iex> OP.parse_head(
-      ...>   ["--source", "lib", "test/enum_test.exs", "--verbose"],
-      ...>   switches: [source: :string, verbose: :boolean]
-      ...> )
-      {[source: "lib"], ["test/enum_test.exs", "--verbose"], []}
-
-      iex> OP.parse_head(
-      ...>   ["--verbose", "--source", "lib", "test/enum_test.exs", "--unlock"],
-      ...>   switches: [source: :string, verbose: :boolean, unlock: :boolean]
-      ...> )
-      {[verbose: true, source: "lib"], ["test/enum_test.exs", "--unlock"], []}
-
-  """
-  @spec parse_head(argv, options) :: {parsed, argv, errors}
-  def parse_head(argv, opts \\ []) when is_list(argv) and is_list(opts) do
-    do_parse(argv, build_config(opts), [], [], [], false)
-  end
-
-  @doc """
-  The same as `parse_head/2` but raises an `OP.ParseError`
-  exception if any invalid options are given.
-
-  If there are no errors, returns a `{parsed, rest}` tuple where:
-
-    * `parsed` is the list of parsed switches (same as in `parse_head/2`)
-    * `rest` is the list of arguments (same as in `parse_head/2`)
-
-  ## Examples
-
-      iex> OP.parse_head!(
-      ...>   ["--source", "lib", "path/to/file", "--verbose"],
-      ...>   switches: [source: :string, verbose: :boolean]
-      ...> )
-      {[source: "lib"], ["path/to/file", "--verbose"]}
-
-      iex> OP.parse_head!(
-      ...>   ["--number", "lib", "test/enum_test.exs", "--verbose"],
-      ...>   strict: [number: :integer]
-      ...> )
-      ** (OP.ParseError) 1 error found!
-      --number : Expected type integer, got "lib"
-
-      iex> OP.parse_head!(
-      ...>   ["--verbose", "--source", "lib", "test/enum_test.exs", "--unlock"],
-      ...>   strict: [verbose: :integer, source: :integer]
-      ...> )
-      ** (OP.ParseError) 2 errors found!
-      --verbose : Missing argument of type integer
-      --source : Expected type integer, got "lib"
-
-  """
-  @spec parse_head!(argv, options) :: {parsed, argv}
-  def parse_head!(argv, opts \\ []) when is_list(argv) and is_list(opts) do
-    case parse_head(argv, opts) do
-      {parsed, args, []} -> {parsed, args}
-      {_, _, errors} -> raise ParseError, format_errors(errors, opts)
-    end
-  end
-
   defp do_parse([], _config, opts, args, invalid, _all?) do
     {Enum.reverse(opts), Enum.reverse(args), Enum.reverse(invalid)}
   end
 
   defp do_parse(argv, %{switches: switches} = config, opts, args, invalid, all?) do
     case next_with_config(argv, config) do
-      {:ok, option, value, rest} ->
+      {:ok, name, value, rest} ->
         # the option exists and it was successfully parsed
-        kinds = List.wrap(Keyword.get(switches, option))
-        new_opts = store_option(opts, option, value, kinds)
+        kinds = List.wrap(Keyword.get(switches, name))
+        new_opts = store_option(opts, name, value, kinds)
         do_parse(rest, config, new_opts, args, invalid, all?)
 
       {:invalid, option, value, rest} ->

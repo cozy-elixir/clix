@@ -123,23 +123,9 @@ defmodule OPTest do
     end
   end
 
-  test "parse_head!/2 raises an exception when an option is of the wrong type" do
-    message = "1 error found!\n--number : Expected type integer, got \"lib\""
-
-    assert_raise OP.ParseError, message, fn ->
-      argv = ["--number", "lib", "test/enum_test.exs"]
-      OP.parse_head!(argv, strict: [number: :integer])
-    end
-  end
-
   describe "arguments" do
     test "parses until --" do
       assert OP.parse(
-               ["--source", "foo", "--", "1", "2", "3"],
-               switches: [source: :string]
-             ) == {[source: "foo"], ["1", "2", "3"], []}
-
-      assert OP.parse_head(
                ["--source", "foo", "--", "1", "2", "3"],
                switches: [source: :string]
              ) == {[source: "foo"], ["1", "2", "3"], []}
@@ -148,41 +134,12 @@ defmodule OPTest do
                ["--source", "foo", "bar", "--", "-x"],
                switches: [source: :string]
              ) == {[source: "foo"], ["bar", "-x"], []}
-
-      assert OP.parse_head(
-               ["--source", "foo", "bar", "--", "-x"],
-               switches: [source: :string]
-             ) == {[source: "foo"], ["bar", "--", "-x"], []}
-    end
-
-    test "return separators" do
-      assert OP.parse_head(["--", "foo"],
-               switches: [],
-               return_separator: true
-             ) == {[], ["--", "foo"], []}
-
-      assert OP.parse_head(["--no-halt", "--", "foo"],
-               switches: [halt: :boolean],
-               return_separator: true
-             ) == {[halt: false], ["--", "foo"], []}
-
-      assert OP.parse_head(["foo.exs", "--no-halt", "--", "foo"],
-               switches: [halt: :boolean],
-               return_separator: true
-             ) == {[], ["foo.exs", "--no-halt", "--", "foo"], []}
     end
 
     test "parses - as argument" do
       argv = ["--foo", "-", "-b", "-"]
       opts = [strict: [foo: :boolean, boo: :string], aliases: [b: :boo]]
       assert OP.parse(argv, opts) == {[foo: true, boo: "-"], ["-"], []}
-    end
-
-    test "parses until first non-option arguments" do
-      argv = ["--source", "from_docs/", "test/enum_test.exs", "--verbose"]
-
-      assert OP.parse_head(argv, switches: [source: :string]) ==
-               {[source: "from_docs/"], ["test/enum_test.exs", "--verbose"], []}
     end
   end
 
