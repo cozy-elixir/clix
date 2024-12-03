@@ -351,21 +351,6 @@ defmodule OPTest do
                {:invalid, "--no-bool", "", ["..."]}
     end
   end
-
-  describe "to_argv" do
-    test "converts options back to switches" do
-      assert OP.to_argv(foo_bar: "baz") == ["--foo-bar", "baz"]
-
-      assert OP.to_argv(bool: true, bool: false, discarded: nil) ==
-               ["--bool", "--no-bool"]
-    end
-
-    test "handles :count switch type" do
-      original = ["--counter", "--counter"]
-      {opts, [], []} = OP.parse(original, switches: [counter: :count])
-      assert original == OP.to_argv(opts, switches: [counter: :count])
-    end
-  end
 end
 
 defmodule OptionsParserDeprecationsTest do

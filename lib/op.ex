@@ -448,58 +448,6 @@ defmodule OP do
     end
   end
 
-  @doc """
-  Receives a key-value enumerable and converts it to `t:argv/0`.
-
-  Keys must be atoms. Keys with `nil` value are discarded,
-  boolean values are converted to `--key` or `--no-key`
-  (if the value is `true` or `false`, respectively),
-  and all other values are converted using `to_string/1`.
-
-  It is advised to pass to `to_argv/2` the same set of `options`
-  given to `parse/2`. Some switches can only be reconstructed
-  correctly with the `:switches` information in hand.
-
-  ## Examples
-
-      iex> OP.to_argv(foo_bar: "baz")
-      ["--foo-bar", "baz"]
-      iex> OP.to_argv(bool: true, bool: false, discarded: nil)
-      ["--bool", "--no-bool"]
-
-  Some switches will output different values based on the switches
-  types:
-
-      iex> OP.to_argv([number: 2], switches: [])
-      ["--number", "2"]
-      iex> OP.to_argv([number: 2], switches: [number: :count])
-      ["--number", "--number"]
-
-  """
-  @spec to_argv(Enumerable.t(), options) :: argv
-  def to_argv(enum, options \\ []) do
-    switches = Keyword.get(options, :switches, [])
-
-    Enum.flat_map(enum, fn
-      {_key, nil} -> []
-      {key, true} -> [to_switch(key)]
-      {key, false} -> [to_switch(key, "--no-")]
-      {key, value} -> to_argv(key, value, switches)
-    end)
-  end
-
-  defp to_argv(key, value, switches) do
-    if switches[key] == :count do
-      List.duplicate(to_switch(key), value)
-    else
-      [to_switch(key), to_string(value)]
-    end
-  end
-
-  defp to_switch(key, prefix \\ "--") when is_atom(key) do
-    prefix <> String.replace(Atom.to_string(key), "_", "-")
-  end
-
   ## Helpers
 
   defp build_config(opts) do
