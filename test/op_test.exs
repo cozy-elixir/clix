@@ -395,18 +395,6 @@ defmodule OPTest do
     end
   end
 
-  test "split" do
-    assert OP.split(~S[]) == []
-    assert OP.split(~S[foo]) == ["foo"]
-    assert OP.split(~S[foo bar]) == ["foo", "bar"]
-    assert OP.split(~S[  foo  bar  ]) == ["foo", "bar"]
-    assert OP.split(~S[foo\ bar]) == ["foo bar"]
-    assert OP.split(~S[foo" bar"]) == ["foo bar"]
-    assert OP.split(~S[foo\" bar\"]) == ["foo\"", "bar\""]
-    assert OP.split(~S[foo "\ bar\""]) == ["foo", "\\ bar\""]
-    assert OP.split(~S[foo '\"bar"\'\ ']) == ["foo", "\\\"bar\"'\\ "]
-  end
-
   describe "to_argv" do
     test "converts options back to switches" do
       assert OP.to_argv(foo_bar: "baz") == ["--foo-bar", "baz"]

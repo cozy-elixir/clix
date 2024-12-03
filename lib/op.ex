@@ -571,60 +571,6 @@ defmodule OP do
     prefix <> String.replace(Atom.to_string(key), "_", "-")
   end
 
-  @doc ~S"""
-  Splits a string into `t:argv/0` chunks.
-
-  This function splits the given `string` into a list of strings in a similar
-  way to many shells.
-
-  ## Examples
-
-      iex> OP.split("foo bar")
-      ["foo", "bar"]
-
-      iex> OP.split("foo \"bar baz\"")
-      ["foo", "bar baz"]
-
-  """
-  @spec split(String.t()) :: argv
-  def split(string) when is_binary(string) do
-    do_split(String.trim_leading(string, " "), "", [], nil)
-  end
-
-  # If we have an escaped quote, simply remove the escape
-  defp do_split(<<?\\, quote, t::binary>>, buffer, acc, quote),
-    do: do_split(t, <<buffer::binary, quote>>, acc, quote)
-
-  # If we have a quote and we were not in a quote, start one
-  defp do_split(<<quote, t::binary>>, buffer, acc, nil) when quote in [?", ?'],
-    do: do_split(t, buffer, acc, quote)
-
-  # If we have a quote and we were inside it, close it
-  defp do_split(<<quote, t::binary>>, buffer, acc, quote), do: do_split(t, buffer, acc, nil)
-
-  # If we have an escaped quote/space, simply remove the escape as long as we are not inside a quote
-  defp do_split(<<?\\, h, t::binary>>, buffer, acc, nil) when h in [?\s, ?', ?"],
-    do: do_split(t, <<buffer::binary, h>>, acc, nil)
-
-  # If we have space and we are outside of a quote, start new segment
-  defp do_split(<<?\s, t::binary>>, buffer, acc, nil),
-    do: do_split(String.trim_leading(t, " "), "", [buffer | acc], nil)
-
-  # All other characters are moved to buffer
-  defp do_split(<<h, t::binary>>, buffer, acc, quote) do
-    do_split(t, <<buffer::binary, h>>, acc, quote)
-  end
-
-  # Finish the string expecting a nil marker
-  defp do_split(<<>>, "", acc, nil), do: Enum.reverse(acc)
-
-  defp do_split(<<>>, buffer, acc, nil), do: Enum.reverse([buffer | acc])
-
-  # Otherwise raise
-  defp do_split(<<>>, _, _acc, marker) do
-    raise "argv string did not terminate properly, a #{<<marker>>} was opened but never closed"
-  end
-
   ## Helpers
 
   defp build_config(opts) do
