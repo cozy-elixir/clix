@@ -259,7 +259,7 @@ defmodule OP do
   """
   @spec parse(argv, options) :: {parsed, argv, errors}
   def parse(argv, opts \\ []) when is_list(argv) and is_list(opts) do
-    do_parse(argv, build_config(opts), [], [], [], true)
+    do_parse(argv, build_config(opts), [], [], [])
   end
 
   @doc """
@@ -302,25 +302,25 @@ defmodule OP do
     end
   end
 
-  defp do_parse([], _config, opts, args, invalid, _all?) do
+  defp do_parse([], _config, opts, args, invalid) do
     {Enum.reverse(opts), Enum.reverse(args), Enum.reverse(invalid)}
   end
 
-  defp do_parse(argv, %{switches: switches} = config, opts, args, invalid, all?) do
+  defp do_parse(argv, %{switches: switches} = config, opts, args, invalid) do
     case next_with_config(argv, config) do
       {:ok, name, value, rest} ->
         # the option exists and it was successfully parsed
         kinds = List.wrap(Keyword.get(switches, name))
         new_opts = store_option(opts, name, value, kinds)
-        do_parse(rest, config, new_opts, args, invalid, all?)
+        do_parse(rest, config, new_opts, args, invalid)
 
       {:invalid, option, value, rest} ->
         # the option exist but it has wrong value
-        do_parse(rest, config, opts, args, [{option, value} | invalid], all?)
+        do_parse(rest, config, opts, args, [{option, value} | invalid])
 
       {:undefined, option, _value, rest} ->
         invalid = if config.strict?, do: [{option, nil} | invalid], else: invalid
-        do_parse(rest, config, opts, args, invalid, all?)
+        do_parse(rest, config, opts, args, invalid)
 
       {:error, ["--" | rest] = remaining_args} ->
         args =
@@ -332,13 +332,9 @@ defmodule OP do
 
         {Enum.reverse(opts), args, Enum.reverse(invalid)}
 
-      {:error, [arg | rest] = remaining_args} ->
+      {:error, [arg | rest]} ->
         # there is no option
-        if all? do
-          do_parse(rest, config, opts, [arg | args], invalid, all?)
-        else
-          {Enum.reverse(opts), Enum.reverse(args, remaining_args), Enum.reverse(invalid)}
-        end
+        do_parse(rest, config, opts, [arg | args], invalid)
     end
   end
 
