@@ -1,9 +1,9 @@
-defmodule OP.MixProject do
+defmodule Cliara.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :op,
+      app: :cliara,
       version: "0.1.0",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,

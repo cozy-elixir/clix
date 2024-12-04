@@ -1,6 +1,13 @@
-defmodule OP do
+defmodule Cliara do
   @moduledoc """
   A simple CLI framework.
+
+  ## Features
+
+    * command line arguments parser, which is desiged to pepare read-to-use parsed result.
+    * help documentation generator, which is designed to generate clear and friendly message.
+
+  ## More
 
   When calling a command, it's possible to pass command line options
   to modify what the command does. In this documentation, those are
@@ -11,10 +18,10 @@ defmodule OP do
   The main function in this module is `parse/2`, which parses a list
   of command line options and arguments into a keyword list:
 
-      iex> OP.parse(["--debug"], strict: [debug: :boolean])
+      iex> Cliara.parse(["--debug"], strict: [debug: :boolean])
       {[debug: true], [], []}
 
-  `OP` provides some conveniences out of the box,
+  `Cliara` provides some conveniences out of the box,
   such as aliases and automatic handling of negation switches.
 
   The `parse_head/2` function is an alternative to `parse/2`
@@ -39,7 +46,7 @@ defmodule OP do
     @moduledoc """
     An exception raised when parsing option fails.
 
-    For example, see `OP.parse!/2`.
+    For example, see `Cliara.parse!/2`.
     """
 
     defexception [:message]
@@ -67,13 +74,13 @@ defmodule OP do
 
   When parsing, it is common to list switches and their expected types:
 
-      iex> OP.parse(["--debug"], strict: [debug: :boolean])
+      iex> Cliara.parse(["--debug"], strict: [debug: :boolean])
       {[debug: true], [], []}
 
-      iex> OP.parse(["--source", "lib"], strict: [source: :string])
+      iex> Cliara.parse(["--source", "lib"], strict: [source: :string])
       {[source: "lib"], [], []}
 
-      iex> OP.parse(
+      iex> Cliara.parse(
       ...>   ["--source-path", "lib", "test/enum_test.exs", "--verbose"],
       ...>   strict: [source_path: :string, verbose: :boolean]
       ...> )
@@ -85,7 +92,7 @@ defmodule OP do
 
   The following options are supported:
 
-    * `:switches` or `:strict` - see the "Switch definitions" section below
+    * `:switches` - see the "Switch definitions" section below
     * `:aliases` - see the "Aliases" section below
     * `:return_separator` - see the "Return separator" section below
 
@@ -97,9 +104,6 @@ defmodule OP do
       in `argv` that is not specified in the list is returned in the
       invalid options list. This is the preferred way to parse options.
 
-    * `:switches` - defines switches and their types. This function
-      still attempts to parse switches that are not in this list.
-
   Both these options accept a keyword list where the key is an atom
   defining the name of the switch and value is the `type` of the
   switch (see the "Types" section below for more information).
@@ -109,7 +113,7 @@ defmodule OP do
 
   ### Types
 
-  Switches parsed by `OP` may take zero or one arguments.
+  Switches parsed by `Cliara` may take zero or one arguments.
 
   The following switches types take no arguments:
 
@@ -143,58 +147,58 @@ defmodule OP do
   In case a switch `SWITCH` is specified to have type `:boolean`, it may be
   passed as `--no-SWITCH` as well which will set the option to `false`:
 
-      iex> OP.parse(["--no-op", "path/to/file"], strict: [op: :boolean])
+      iex> Cliara.parse(["--no-op", "path/to/file"], strict: [op: :boolean])
       {[op: false], ["path/to/file"], []}
 
   ### Parsing unknown options
 
-  `OP` doesn't attempt to parse unknown options.
+  `Cliara` doesn't attempt to parse unknown options.
 
-      iex> OP.parse(["--debug"], strict: [])
+      iex> Cliara.parse(["--debug"], strict: [])
       {[], [], [{"--debug", nil}]}
 
   ## Aliases
 
   A set of aliases can be specified in the `:aliases` option:
 
-      iex> OP.parse(["-d"], aliases: [d: :debug], strict: [debug: :boolean])
+      iex> Cliara.parse(["-d"], aliases: [d: :debug], strict: [debug: :boolean])
       {[debug: true], [], []}
 
   ## Examples
 
   Here are some examples of working with different types and modifiers:
 
-      iex> OP.parse(["--unlock", "path/to/file"], strict: [unlock: :boolean])
+      iex> Cliara.parse(["--unlock", "path/to/file"], strict: [unlock: :boolean])
       {[unlock: true], ["path/to/file"], []}
 
-      iex> OP.parse(
+      iex> Cliara.parse(
       ...>   ["--unlock", "--limit", "0", "path/to/file"],
       ...>   strict: [unlock: :boolean, limit: :integer]
       ...> )
       {[unlock: true, limit: 0], ["path/to/file"], []}
 
-      iex> OP.parse(["--limit", "3"], strict: [limit: :integer])
+      iex> Cliara.parse(["--limit", "3"], strict: [limit: :integer])
       {[limit: 3], [], []}
 
-      iex> OP.parse(["--limit", "xyz"], strict: [limit: :integer])
+      iex> Cliara.parse(["--limit", "xyz"], strict: [limit: :integer])
       {[], [], [{"--limit", "xyz"}]}
 
-      iex> OP.parse(["--verbose"], strict: [verbose: :count])
+      iex> Cliara.parse(["--verbose"], strict: [verbose: :count])
       {[verbose: 1], [], []}
 
-      iex> OP.parse(["-v", "-v"], aliases: [v: :verbose], strict: [verbose: :count])
+      iex> Cliara.parse(["-v", "-v"], aliases: [v: :verbose], strict: [verbose: :count])
       {[verbose: 2], [], []}
 
-      iex> OP.parse(["--unknown", "xyz"], strict: [])
+      iex> Cliara.parse(["--unknown", "xyz"], strict: [])
       {[], ["xyz"], [{"--unknown", nil}]}
 
-      iex> OP.parse(
+      iex> Cliara.parse(
       ...>   ["--limit", "3", "--unknown", "xyz"],
       ...>   strict: [limit: :integer]
       ...> )
       {[limit: 3], ["xyz"], [{"--unknown", nil}]}
 
-      iex> OP.parse(
+      iex> Cliara.parse(
       ...>   ["--unlock", "path/to/file", "--unlock", "path/to/another/file"],
       ...>   strict: [unlock: :keep]
       ...> )
@@ -206,17 +210,17 @@ defmodule OP do
   By default, the separator is not returned as parts of the arguments,
   but that can be changed via the `:return_separator` option:
 
-      iex> OP.parse(["--", "lib"], return_separator: true, strict: [])
+      iex> Cliara.parse(["--", "lib"], return_separator: true, strict: [])
       {[], ["--", "lib"], []}
 
-      iex> OP.parse(
+      iex> Cliara.parse(
       ...>   ["--no-halt", "--", "lib"],
       ...>   return_separator: true,
       ...>   strict: [halt: :boolean]
       ...> )
       {[halt: false], ["--", "lib"], []}
 
-      iex> OP.parse(
+      iex> Cliara.parse(
       ...>   ["script.exs", "--no-halt", "--", "foo"],
       ...>   return_separator: true,
       ...>   strict: [halt: :boolean]
@@ -230,7 +234,7 @@ defmodule OP do
   end
 
   @doc """
-  The same as `parse/2` but raises an `OP.ParseError`
+  The same as `parse/2` but raises an `Cliara.ParseError`
   exception if any invalid options are given.
 
   If there are no errors, returns a `{parsed, rest}` tuple where:
@@ -240,23 +244,23 @@ defmodule OP do
 
   ## Examples
 
-      iex> OP.parse!(["--debug", "path/to/file"], strict: [debug: :boolean])
+      iex> Cliara.parse!(["--debug", "path/to/file"], strict: [debug: :boolean])
       {[debug: true], ["path/to/file"]}
 
-      iex> OP.parse!(["--limit", "xyz"], strict: [limit: :integer])
-      ** (OP.ParseError) 1 error found!
+      iex> Cliara.parse!(["--limit", "xyz"], strict: [limit: :integer])
+      ** (Cliara.ParseError) 1 error found!
       --limit : Expected type integer, got "xyz"
 
-      iex> OP.parse!(["--unknown", "xyz"], strict: [])
-      ** (OP.ParseError) 1 error found!
+      iex> Cliara.parse!(["--unknown", "xyz"], strict: [])
+      ** (Cliara.ParseError) 1 error found!
       --unknown : Unknown option
 
-      iex> OP.parse!(
+      iex> Cliara.parse!(
       ...>   ["-l", "xyz", "-f", "bar"],
       ...>   strict: [limit: :integer, foo: :integer],
       ...>   aliases: [l: :limit, f: :foo]
       ...> )
-      ** (OP.ParseError) 2 errors found!
+      ** (Cliara.ParseError) 2 errors found!
       -l : Expected type integer, got "xyz"
       -f : Expected type integer, got "bar"
 
@@ -437,15 +441,12 @@ defmodule OP do
   defp build_config(opts) do
     {switches, strict?} =
       cond do
-        opts[:switches] && opts[:strict] ->
-          raise ArgumentError, ":switches and :strict cannot be given together"
-
         switches = opts[:strict] ->
           validate_switches(switches)
           {switches, true}
 
         true ->
-          IO.warn("not passing the :strict option to OP is deprecated")
+          IO.warn("not passing the :strict option to Cliara is deprecated")
           {[], false}
       end
 
