@@ -1,4 +1,4 @@
-# Cliara
+# CLIX
 
 **TODO: Add description**
 
@@ -10,7 +10,7 @@ by adding `op` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:cliara, "~> 0.1.0"}
+    {:clix, "~> 0.1.0"}
   ]
 end
 ```
