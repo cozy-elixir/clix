@@ -133,21 +133,20 @@ defmodule CLIX.Spec do
       long: nil,
       type: :string,
       action: :store,
-      default: nil,
       value_name: nil,
       help: nil
     }
 
-    opt_spec = Map.merge(default_opt_spec, opt_spec)
+    opt_spec = default_opt_spec |> Map.merge(opt_spec) |> put_opt_default()
+
     {opt_name, opt_spec}
   end
 
-  defp put_opt_default() do
-    # for action: :store, the default value should be nil
-    # for action: :store, :boolean the default value should be false ?
-    # for action: :count, the default value should be zero
-    # for action: :append, the default value should be []
-  end
+  defp put_opt_default(%{default: _} = opt_spec), do: opt_spec
+  defp put_opt_default(%{action: :store, type: :boolean} = opt_spec), do: Map.put(opt_spec, :default, false)
+  defp put_opt_default(%{action: :store, type: _} = opt_spec), do: Map.put(opt_spec, :default, nil)
+  defp put_opt_default(%{action: :count, type: _} = opt_spec), do: Map.put(opt_spec, :default, 0)
+  defp put_opt_default(%{action: :append, type: _} = opt_spec), do: Map.put(opt_spec, :default, [])
 
   # It validates the constaints of values, instead of the types, which should be done by Dialyzer.
   defp validate_cmd_pair!({cmd_name, cmd_spec}, cmd_path) do

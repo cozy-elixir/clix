@@ -4,12 +4,6 @@ defmodule CLIX.Parser do
 
   It parses both args and opts, and pepare read-to-use parsed result.
 
-  When parsing, it processes command line arguments in three stages.
-
-    * stage 1 - parse opts and collecting args.
-    * stage 2 - parse args.
-    * stage 3 - perform post-parsing operations.
-
   ## Supported syntax of opts
 
   The supported syntax comes from POSIX's getopt and GNU's getopt.
@@ -58,6 +52,21 @@ defmodule CLIX.Parser do
   program -f arg1 -o value arg2 arg3
   # equals to 'program -f -- arg1 -o value arg2 arg3'
   ```
+
+  ## About the internal
+
+  It would be helpful to give you (the possible contributor) some information about the internal.
+
+  ### Overview
+
+  When parsing command line arguments, it processes them in 2 stages.
+
+    * stage 1 - parse opts and collecting args.
+    * stage 2 - parse args.
+
+  ### Verify compatibility with GNU's getopt
+
+  I'm using [jamesodhunt/test-getopt](https://github.com/jamesodhunt/test-getopt).
   """
 
   alias CLIX.Spec
@@ -95,6 +104,7 @@ defmodule CLIX.Parser do
     config = build_config(spec)
     {pos_argv, {opt_args, opt_errors}} = parse_stage1(mode, config, argv)
     {pos_args, pos_errors} = parse_stage2(config, pos_argv)
+
     errors = List.flatten([opt_errors, pos_errors])
     {pos_args, opt_args, errors}
   end
@@ -102,13 +112,15 @@ defmodule CLIX.Parser do
   defp build_config({cmd_name, cmd_spec}) do
     %{args: args, opts: opts} = cmd_spec
     pos_specs = build_pos_specs(args)
-    {short_opt_specs, long_opt_specs} = build_opt_specs(opts)
+    opt_specs = build_opt_specs(opts)
+    {short_opt_specs, long_opt_specs} = group_opt_specs(opts)
 
     cmd_path = [cmd_name]
 
     %{
       cmd_path: cmd_path,
       pos_specs: pos_specs,
+      opt_specs: opt_specs,
       short_opt_specs: short_opt_specs,
       long_opt_specs: long_opt_specs
     }
@@ -117,19 +129,21 @@ defmodule CLIX.Parser do
   defp build_config(config, {cmd_name, cmd_spec}) do
     %{args: args, opts: opts} = cmd_spec
     new_pos_specs = build_pos_specs(args)
-    {new_short_opt_specs, new_long_opt_specs} = build_opt_specs(opts)
+    new_opt_specs = build_opt_specs(opts)
+    {new_short_opt_specs, new_long_opt_specs} = group_opt_specs(opts)
 
     cmd_path = config.cmd_path ++ [cmd_name]
     pos_specs = config.pos_specs ++ new_pos_specs
+    opt_specs = Map.merge(config.opt_specs, new_opt_specs)
     short_opt_specs = Map.merge(config.short_opt_specs, new_short_opt_specs)
     long_opt_specs = Map.merge(config.long_opt_specs, new_long_opt_specs)
 
     %{
-      config
-      | cmd_path: cmd_path,
-        pos_specs: pos_specs,
-        short_opt_specs: short_opt_specs,
-        long_opt_specs: long_opt_specs
+      cmd_path: cmd_path,
+      pos_specs: pos_specs,
+      opt_specs: opt_specs,
+      short_opt_specs: short_opt_specs,
+      long_opt_specs: long_opt_specs
     }
   end
 
@@ -138,6 +152,10 @@ defmodule CLIX.Parser do
   end
 
   defp build_opt_specs(opts) do
+    Enum.into(opts, %{})
+  end
+
+  defp group_opt_specs(opts) do
     Enum.reduce(opts, {%{}, %{}}, fn {key, spec}, {shorts, longs} ->
       attrs =
         spec
@@ -159,12 +177,14 @@ defmodule CLIX.Parser do
   end
 
   defp parse_stage1(mode, config, argv) do
-    parse_stage1(mode, config, argv, [], {%{}, []})
+    {pos_argv, {opt_args, opt_errors}} = parse_stage1(mode, config, argv, [], {%{}, []})
+    {opt_args, extra_opt_errors} = normalize_opt_args(config, opt_args)
+    opt_errors = [extra_opt_errors | opt_errors] |> List.flatten() |> Enum.reverse()
+    {pos_argv, {opt_args, opt_errors}}
   end
 
   defp parse_stage1(_mode, _config, [], pos_argv, {opt_args, opt_errors}) do
     pos_argv = Enum.reverse(pos_argv)
-    opt_errors = opt_errors |> List.flatten() |> Enum.reverse()
     {pos_argv, {opt_args, opt_errors}}
   end
 
@@ -349,6 +369,20 @@ defmodule CLIX.Parser do
 
   defp store_opt_arg(opt_args, :append, key, value),
     do: Map.update(opt_args, key, [value], &(&1 ++ [value]))
+
+  defp normalize_opt_args(config, opt_args) do
+    %{opt_specs: opt_specs} = config
+
+    Enum.reduce(opt_specs, {opt_args, []}, fn {key, opt_spec}, {opt_args, opt_errors} ->
+      cond do
+        not Map.has_key?(opt_args, key) ->
+          {Map.put(opt_args, key, opt_spec.default), opt_errors}
+
+        true ->
+          {opt_args, opt_errors}
+      end
+    end)
+  end
 
   defp parse_stage2(config, pos_argv) do
     %{pos_specs: pos_specs} = config
