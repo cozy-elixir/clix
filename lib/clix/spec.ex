@@ -1,6 +1,8 @@
 defmodule CLIX.Spec do
   @moduledoc """
-  Builds the spec for parsing command line arguments, generating usage, etc.
+  The spec builder.
+
+  A spec is the basis for parsing, doc generation, etc.
   """
 
   @type t :: {cmd_name(), cmd_spec()}

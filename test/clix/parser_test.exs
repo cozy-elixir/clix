@@ -4,6 +4,8 @@ defmodule CLIX.ParserTest do
   alias CLIX.Spec
   alias CLIX.Parser
 
+  doctest Parser
+
   describe "args - :type attr" do
     test "default to :string" do
       spec = new_spec(%{args: [arg: %{}]})
@@ -69,58 +71,6 @@ defmodule CLIX.ParserTest do
 
       assert Parser.parse(spec, []) == {%{}, %{}, [{:missing_arg, :arg}]}
       assert Parser.parse(spec, ["a", "b"]) == {%{arg: ["a", "b"]}, %{}, []}
-    end
-
-    test "example (cp) - <SRC>... <DST>" do
-      spec =
-        new_spec(%{
-          args: [
-            src: %{nargs: :+},
-            dst: %{}
-          ]
-        })
-
-      assert Parser.parse(spec, []) == {%{}, %{}, [{:missing_arg, :src}, {:missing_arg, :dst}]}
-      assert Parser.parse(spec, ["src1"]) == {%{src: ["src1"]}, %{}, [{:missing_arg, :dst}]}
-      assert Parser.parse(spec, ["src1", "dst"]) == {%{src: ["src1"], dst: "dst"}, %{}, []}
-      assert Parser.parse(spec, ["src1", "src2", "dst"]) == {%{src: ["src1", "src2"], dst: "dst"}, %{}, []}
-    end
-
-    test "example (httpie) - [METHOD] <URL> [REQUEST_ITEM]" do
-      spec =
-        new_spec(%{
-          args: [
-            method: %{nargs: :"?", default: "GET"},
-            url: %{},
-            request_items: %{nargs: :*}
-          ]
-        })
-
-      assert Parser.parse(spec, ["https://example.com"]) ==
-               {%{
-                  method: "GET",
-                  url: "https://example.com",
-                  request_items: []
-                }, %{}, []}
-
-      assert Parser.parse(spec, ["POST", "https://example.com"]) ==
-               {%{
-                  method: "POST",
-                  url: "https://example.com",
-                  request_items: []
-                }, %{}, []}
-
-      assert Parser.parse(spec, [
-               "POST",
-               "https://example.com",
-               "name=Joe",
-               "email=Joe@example.org"
-             ]) ==
-               {%{
-                  method: "POST",
-                  url: "https://example.com",
-                  request_items: ["name=Joe", "email=Joe@example.org"]
-                }, %{}, []}
     end
   end
 
@@ -435,6 +385,30 @@ defmodule CLIX.ParserTest do
   end
 
   describe "opts - :default attr" do
+  end
+
+  test "collects multiple errors" do
+    spec =
+      new_spec(%{
+        args: [
+          born: %{}
+        ],
+        opts: [
+          name: %{short: "n", long: "name"},
+          age: %{short: "a", long: "age", type: :integer},
+          city: %{short: "c", long: "city"}
+        ]
+      })
+
+    assert Parser.parse(spec, ["--unknown1", "--unknown2", "--name", "Joe", "--age", "forever", "--city"]) ==
+             {%{}, %{age: nil, city: nil, name: "Joe"},
+              [
+                {:unknown_opt, "--unknown1"},
+                {:unknown_opt, "--unknown2"},
+                {:invalid_opt_value, "--age", "forever"},
+                {:missing_opt_value, "--city"},
+                {:missing_arg, :born}
+              ]}
   end
 
   test "single '-' is handled as a normal argument" do

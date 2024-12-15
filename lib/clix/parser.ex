@@ -1,12 +1,94 @@
+# credo:disable-for-this-file Credo.Check.Refactor.Nesting
+
 defmodule CLIX.Parser do
   @moduledoc """
-  Command line arguments parser.
+  The command line arguments parser.
 
-  It parses both args and opts, and pepare read-to-use parsed result.
+  It designed to:
 
-  ## Supported syntax of opts
+    * parse both positional arguments, optional arguments and subcommands
+    * pepare read-to-use result
 
-  The supported syntax comes from POSIX's getopt and GNU's getopt.
+  ## Quick start
+
+      iex> # 1. build a spec
+      iex> spec = CLIX.Spec.new({:hello, %{
+      iex>   args: [
+      iex>     msg: %{}
+      iex>   ],
+      iex>   opts: [
+      iex>     debug: %{short: "d", long: "debug", type: :boolean},
+      iex>     verbose: %{short: "v", long: "verbose", type: :boolean, action: :count},
+      iex>     to: %{short: "t", long: "to", type: :string, action: :append}
+      iex>   ]
+      iex> }})
+      iex>
+      iex> # 2. parse argv with spec
+      iex>
+      iex> # bad argv
+      iex> CLIX.Parser.parse(spec, [])
+      {%{}, %{debug: false, verbose: 0, to: []}, [missing_arg: :msg]}
+      iex>
+      iex> # good argv in strict order
+      iex> CLIX.Parser.parse(spec, ["--debug", "-vvvv", "-t", "John", "-t", "Dave", "aloha"])
+      {%{msg: "aloha"}, %{debug: true, to: ["John", "Dave"], verbose: 4}, []}
+      iex>
+      iex> # good argv in intermixed order
+      iex> CLIX.Parser.parse(spec, ["--debug", "-vvvv", "aloha", "-t", "John", "-t", "Dave", ])
+      {%{msg: "aloha"}, %{debug: true, to: ["John", "Dave"], verbose: 4}, []}
+
+  Read the doc of `CLIX.Spec` and `CLIX.Parser` for more information.
+
+  ## The parsing of positional arguments
+
+  The key part here is how to allocate a limited number of arguments to as many
+  different positional arguments as possible. With the design of `t:CLIX.Spec.nargs/0`,
+  we can easily achieve it.
+
+  An example cloning `cp` (`cp <SRC>... <DST>`):
+
+      iex> spec = CLIX.Spec.new({:cp, %{args: [
+      iex>   src: %{nargs: :+},
+      iex>    dst: %{}
+      iex> ]}})
+      iex>
+      iex> CLIX.Parser.parse(spec, [])
+      {%{}, %{}, [{:missing_arg, :src}, {:missing_arg, :dst}]}
+      iex>
+      iex> CLIX.Parser.parse(spec, ["src1"])
+      {%{src: ["src1"]}, %{}, [{:missing_arg, :dst}]}
+      iex>
+      iex> CLIX.Parser.parse(spec, ["src1", "dst"])
+      {%{src: ["src1"], dst: "dst"}, %{}, []}
+      iex>
+      iex> CLIX.Parser.parse(spec, ["src1", "src2", "dst"])
+      {%{src: ["src1", "src2"], dst: "dst"}, %{}, []}
+
+  Or, an example cloning `httpie` (`httpie [METHOD] <URL> [REQUEST_ITEM]`):
+
+      iex> spec = CLIX.Spec.new({:httpie, %{args: [
+      iex>   method: %{nargs: :"?", default: "GET"},
+      iex>   url: %{},
+      iex>   request_items: %{nargs: :*}
+      iex> ]}})
+      iex>
+      iex> CLIX.Parser.parse(spec, ["https://example.com"])
+      {%{method: "GET", url: "https://example.com", request_items: []}, %{}, []}
+      iex>
+      iex> CLIX.Parser.parse(spec, ["POST", "https://example.com"])
+      {%{method: "POST", url: "https://example.com", request_items: []}, %{}, []}
+      iex>
+      iex> CLIX.Parser.parse(spec, ["POST", "https://example.com", "name=Joe", "email=Joe@example.com"])
+      {%{method: "POST", url: "https://example.com", request_items: ["name=Joe", "email=Joe@example.com"]}, %{}, []}
+
+  > The algo is borrowed from
+  > Python's [argparse](https://github.com/python/cpython/blob/3.13/Lib/argparse.py).
+
+  ## The parsing of optional arguments
+
+  ### Supported syntax
+
+  The syntax of GNU's getopt (implicitly involves POSIX's getopt) is supported.
 
   ```plain
   # short opts
@@ -22,27 +104,29 @@ defmodule CLIX.Parser do
   --option=<value>
   ```
 
-  ## Supported parsing modes
+  ## The parsing modes
 
-  ### `:intermixed` (default)
+  ### `:intermixed` mode
 
-  This's the GNU's way of parsing opts.
-
-  The args and opts can be intermixed.
+  This's the GNU's way of parsing optional arguments.
+  The positional arguments and optional arguments can be intermixed.
 
   For example:
 
-  ```plain
+  ```console
   program arg1 -f arg2 -o value arg3
   # equals to 'program -f -o value arg1 arg2 arg3'
   ```
 
-  ### `:strict`
+  ### `:strict` mode
 
-  This's the POSIX's way of parsing opts. It equals to set `POSIXLY_CORRECT` env for GNU's getopt.
+  This's the POSIX's way of parsing optional arguments:
 
-  It strictly requires all opts to appear before args. And, all arguments after first arg will be
-  treated as args.
+    * requires all optional arguments to appear before positional arguments.
+    * any optional arguments after the first positional arguments are treated
+      as positiontal arguments.
+
+  > It equals to set `POSIXLY_CORRECT` env for GNU's getopt.
 
   For example:
 
@@ -61,7 +145,7 @@ defmodule CLIX.Parser do
 
   When parsing command line arguments, it processes them in 2 stages.
 
-    * stage 1 - parse opts and collecting args.
+    * stage 1 - parse optional arguments and collecting positional arguments.
     * stage 2 - parse args.
 
   ### Verify compatibility with GNU's getopt
@@ -82,6 +166,9 @@ defmodule CLIX.Parser do
   """
   @type argv :: [String.t()]
 
+  @typedoc """
+  The options of parsing.
+  """
   @type opts :: [opt()]
   @type opt :: {:mode, :intermixed | :strict}
 
@@ -95,7 +182,9 @@ defmodule CLIX.Parser do
   @doc """
   Parses `argv` with given `spec`.
 
-  Generally, `argv` is fetched by `System.argv()`.
+  Supported opts:
+
+    * `:mode` - `:intermixed` (default) / `:strict`
   """
   @spec parse(Spec.t(), argv(), opts()) :: result()
   def parse(spec, argv, opts \\ []) do
@@ -126,26 +215,26 @@ defmodule CLIX.Parser do
     }
   end
 
-  defp build_config(config, {cmd_name, cmd_spec}) do
-    %{args: args, opts: opts} = cmd_spec
-    new_pos_specs = build_pos_specs(args)
-    new_opt_specs = build_opt_specs(opts)
-    {new_short_opt_specs, new_long_opt_specs} = group_opt_specs(opts)
+  # defp build_config(config, {cmd_name, cmd_spec}) do
+  #   %{args: args, opts: opts} = cmd_spec
+  #   new_pos_specs = build_pos_specs(args)
+  #   new_opt_specs = build_opt_specs(opts)
+  #   {new_short_opt_specs, new_long_opt_specs} = group_opt_specs(opts)
 
-    cmd_path = config.cmd_path ++ [cmd_name]
-    pos_specs = config.pos_specs ++ new_pos_specs
-    opt_specs = Map.merge(config.opt_specs, new_opt_specs)
-    short_opt_specs = Map.merge(config.short_opt_specs, new_short_opt_specs)
-    long_opt_specs = Map.merge(config.long_opt_specs, new_long_opt_specs)
+  #   cmd_path = config.cmd_path ++ [cmd_name]
+  #   pos_specs = config.pos_specs ++ new_pos_specs
+  #   opt_specs = Map.merge(config.opt_specs, new_opt_specs)
+  #   short_opt_specs = Map.merge(config.short_opt_specs, new_short_opt_specs)
+  #   long_opt_specs = Map.merge(config.long_opt_specs, new_long_opt_specs)
 
-    %{
-      cmd_path: cmd_path,
-      pos_specs: pos_specs,
-      opt_specs: opt_specs,
-      short_opt_specs: short_opt_specs,
-      long_opt_specs: long_opt_specs
-    }
-  end
+  #   %{
+  #     cmd_path: cmd_path,
+  #     pos_specs: pos_specs,
+  #     opt_specs: opt_specs,
+  #     short_opt_specs: short_opt_specs,
+  #     long_opt_specs: long_opt_specs
+  #   }
+  # end
 
   defp build_pos_specs(args) do
     Enum.map(args, fn {key, spec} -> Map.put(spec, :key, key) end)
@@ -374,12 +463,10 @@ defmodule CLIX.Parser do
     %{opt_specs: opt_specs} = config
 
     Enum.reduce(opt_specs, {opt_args, []}, fn {key, opt_spec}, {opt_args, opt_errors} ->
-      cond do
-        not Map.has_key?(opt_args, key) ->
-          {Map.put(opt_args, key, opt_spec.default), opt_errors}
-
-        true ->
-          {opt_args, opt_errors}
+      if Map.has_key?(opt_args, key) do
+        {opt_args, opt_errors}
+      else
+        {Map.put(opt_args, key, opt_spec.default), opt_errors}
       end
     end)
   end
@@ -554,33 +641,4 @@ defmodule CLIX.Parser do
       :error -> :error
     end
   end
-
-  # @doc false
-  # def format_errors(config, [_ | _] = errors) do
-  #   error_count = length(errors)
-  #   error = if error_count == 1, do: "error", else: "errors"
-
-  #   "#{error_count} #{error} found!\n" <>
-  #     Enum.map_join(errors, "\n", &format_error(&1, config))
-  # end
-
-  # defp format_error({:unknown_opt, _opt_id, orig_opt}, _config) do
-  #   "#{orig_opt}: unrecognized arguments"
-  # end
-
-  # defp format_error({:invalid_opt, opt_id, orig_opt, nil}, config) do
-  #   type = get_opt_type(opt_id, config)
-  #   "#{orig_opt}: missing value of type #{type}"
-  # end
-
-  # defp format_error({:invalid_opt, opt_id, orig_opt, value}, config) do
-  #   type = get_opt_type(opt_id, config)
-  #   "#{orig_opt}: expected value of type #{type}, got #{inspect(value)}"
-  # end
-
-  # defp get_opt_type({:long, name}, config),
-  #   do: config.long_opt_args |> Map.fetch!(name) |> Map.fetch!(:type)
-
-  # defp get_opt_type({:short, name}, config),
-  #   do: config.short_opt_args |> Map.fetch!(name) |> Map.fetch!(:type)
 end
