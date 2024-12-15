@@ -148,6 +148,12 @@ defmodule CLIX.Parser do
     * stage 1 - parse optional arguments and collecting positional arguments.
     * stage 2 - parse args.
 
+  ### Variable names
+
+    * For argument specs, use `pos_specs`, `opt_specs`.
+    * For raw arguments, use `pos_argv`, `opt_argv`.
+    * For parsed arguments, use `pos_args`, `opt_args`.
+
   ### Verify compatibility with GNU's getopt
 
   I'm using [jamesodhunt/test-getopt](https://github.com/jamesodhunt/test-getopt).
@@ -182,9 +188,10 @@ defmodule CLIX.Parser do
   @doc """
   Parses `argv` with given `spec`.
 
-  Supported opts:
+  Available opts:
 
     * `:mode` - `:intermixed` (default) / `:strict`
+
   """
   @spec parse(Spec.t(), argv(), opts()) :: result()
   def parse(spec, argv, opts \\ []) do

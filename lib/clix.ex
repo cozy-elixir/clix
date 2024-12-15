@@ -61,8 +61,8 @@ defmodule CLIX do
     * positional arguments are required by default, but can be made optional.
     * optional arguments are always optional, and this is unchangeable.
 
-  In other implementations, optional arguments can be made required. Personally
-  , I don't think that's a good design. You can try to say "The optional argument
+  In other implementations, optional arguments can be made required. Personally,
+  I don't think that's a good design. You can try to say "The optional argument
   is required", then you might feel it's a bit counterintuitive. That's because
   the name (optional argument) does not match its description (requried).
 

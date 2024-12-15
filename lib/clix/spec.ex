@@ -5,24 +5,30 @@ defmodule CLIX.Spec do
   A spec is the basis for parsing, doc generation, etc.
   """
 
+  @typedoc "The spec."
   @type t :: {cmd_name(), cmd_spec()}
 
   @typedoc """
   The name of a command.
 
-  The top-level cmd_name is root command name (aka. the program name). If you name your CLI app
-  as *example*, then you should set the top-level cmd_name as `:example`.
+  The top-level cmd_name is the program name. If you name your CLI app as *example*,
+  then you should set the top-level cmd_name as `:example`.
   """
   @type cmd_name :: atom()
 
-  @typedoc "The parsing spec of a command."
+  @typedoc """
+  The parsing spec of a command.
+  """
   @type cmd_spec :: %{
+          name: String.t() | nil,
+          summary: String.t() | nil,
+          description: String.t() | nil,
           args: [{arg_name(), arg_spec()}],
           opts: [{opt_name(), opt_spec()}],
           cmds: [{cmd_name(), cmd_spec()}]
         }
 
-  @typedoc "The type which the arguments will be parsed as."
+  @typedoc "The type which the argument will be parsed as."
   @type type ::
           :string
           | :boolean
@@ -35,8 +41,8 @@ defmodule CLIX.Spec do
 
     * `nil` - consume one argument.
     * `:"?"` - consume zero or one argument.
-    * `:*` - consume zero or more arguments until encountering the next opt or reaching the end.
-    * `:+` - consume one or more arguments until encountering the next opt or reaching the end.
+    * `:*` - consume zero or more arguments.
+    * `:+` - consume one or more arguments.
 
   """
   @type nargs :: nil | :"?" | :* | :+
@@ -55,19 +61,7 @@ defmodule CLIX.Spec do
 
   @typedoc "The name of an optional argument."
   @type opt_name :: atom()
-  @typedoc """
-  The parsing spec of optional argument.
-
-  ## About `:nargs`
-
-  You might have noticed that `opt_spec()` does not support `:nargs`. This is intentional.
-
-  If you want to collect multiple values for an option, try following workarounds:
-
-    * use a delimiter to seperate multiple values, like `pgrep` did - `ps -s 123,456 ...`.
-    * repeat an option mulitple times, like `grep` did - `grep -e pattern1 -e pattern2 ...`.
-
-  """
+  @typedoc "The parsing spec of optional argument."
   @type opt_spec :: %{
           optional(:short) => String.t() | nil,
           optional(:long) => String.t() | nil,
@@ -83,7 +77,7 @@ defmodule CLIX.Spec do
 
   It will cast and validate the raw spec.
   """
-  @spec new({cmd_name(), cmd_spec()}) :: t()
+  @spec new(raw_spec :: {cmd_name(), cmd_spec()}) :: t()
   def new({cmd_name, cmd_spec}) when is_atom(cmd_name) and is_map(cmd_spec) do
     cmd_path = []
 
@@ -94,12 +88,17 @@ defmodule CLIX.Spec do
 
   defp cast_cmd_pair({cmd_name, cmd_spec}) do
     default_cmd_spec = %{
+      summary: nil,
+      description: nil,
       args: [],
       opts: [],
       cmds: []
     }
 
-    cmd_spec = Map.merge(default_cmd_spec, cmd_spec)
+    cmd_spec =
+      default_cmd_spec
+      |> Map.merge(cmd_spec)
+      |> put_cmd_name(cmd_name)
 
     cmd_spec =
       cmd_spec
@@ -110,6 +109,15 @@ defmodule CLIX.Spec do
     {cmd_name, cmd_spec}
   end
 
+  defp put_cmd_name(%{name: name} = cmd_spec, _cmd_name) when name !== nil do
+    cmd_spec
+  end
+
+  defp put_cmd_name(cmd_spec, cmd_name) do
+    name = to_string(cmd_name)
+    Map.put(cmd_spec, :name, name)
+  end
+
   defp cast_arg_pair({arg_name, arg_spec}) when is_atom(arg_name) and is_map(arg_spec) do
     default_arg_spec = %{
       type: :string,
@@ -118,7 +126,11 @@ defmodule CLIX.Spec do
       help: nil
     }
 
-    arg_spec = default_arg_spec |> Map.merge(arg_spec) |> put_arg_default()
+    arg_spec =
+      default_arg_spec
+      |> Map.merge(arg_spec)
+      |> put_arg_default()
+      |> put_arg_value_name(arg_name)
 
     {arg_name, arg_spec}
   end
@@ -129,17 +141,29 @@ defmodule CLIX.Spec do
   defp put_arg_default(%{nargs: :*} = arg_spec), do: Map.put(arg_spec, :default, [])
   defp put_arg_default(%{nargs: :+} = arg_spec), do: Map.put(arg_spec, :default, [])
 
+  defp put_arg_value_name(%{value_name: value_name} = arg_spec, _arg_name) when value_name !== nil do
+    arg_spec
+  end
+
+  defp put_arg_value_name(arg_spec, arg_name) do
+    value_name = arg_name |> to_string() |> String.upcase()
+    Map.put(arg_spec, :value_name, value_name)
+  end
+
   defp cast_opt_pair({opt_name, opt_spec}) when is_atom(opt_name) and is_map(opt_spec) do
     default_opt_spec = %{
       short: nil,
       long: nil,
       type: :string,
       action: :store,
-      value_name: nil,
       help: nil
     }
 
-    opt_spec = default_opt_spec |> Map.merge(opt_spec) |> put_opt_default()
+    opt_spec =
+      default_opt_spec
+      |> Map.merge(opt_spec)
+      |> put_opt_default()
+      |> put_opt_value_name(opt_name)
 
     {opt_name, opt_spec}
   end
@@ -149,6 +173,15 @@ defmodule CLIX.Spec do
   defp put_opt_default(%{action: :store, type: _} = opt_spec), do: Map.put(opt_spec, :default, nil)
   defp put_opt_default(%{action: :count, type: _} = opt_spec), do: Map.put(opt_spec, :default, 0)
   defp put_opt_default(%{action: :append, type: _} = opt_spec), do: Map.put(opt_spec, :default, [])
+
+  defp put_opt_value_name(%{value_name: value_name} = opt_spec, _opt_name) when value_name !== nil do
+    opt_spec
+  end
+
+  defp put_opt_value_name(opt_spec, opt_name) do
+    value_name = opt_name |> to_string() |> String.upcase()
+    Map.put(opt_spec, :value_name, value_name)
+  end
 
   # It validates the constaints of values, instead of the types, which should be done by Dialyzer.
   defp validate_cmd_pair!({cmd_name, cmd_spec}, cmd_path) do
