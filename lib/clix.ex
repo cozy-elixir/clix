@@ -1,6 +1,6 @@
 defmodule CLIX do
   @moduledoc """
-  A utility-first CLI framework.
+  A utility-first, composable CLI framework.
 
   Before we begin, let's first talk about the terminology and conventions used
   in CLIX.
@@ -9,9 +9,9 @@ defmodule CLIX do
 
     1. use `CLIX.Spec` to build a spec.
     2. use `CLIX.Parser` to parse argv with the built spec.
-    3. use `CLIX.Doc` to generate docs with the built spec.
+    3. use `CLIX.Feedback` to generate user-faced feedbacks with the built spec.
 
-  ## The arguments
+  ## About arguments
 
   The arguments is the abbrev of "command line arguments", which is the main
   thing handled by a CLI framework.
@@ -49,18 +49,7 @@ defmodule CLIX do
   The option terminator is `--`. When it is used, all the arguments after it are
   considered as positional arguments.
 
-  #### The structure of an option
-
-  |                    | option prefix | option string    | option name | option value |
-  | ------------------ | ------------- | ---------------- | ----------- | ------------ |
-  | `-o <value>`       | `-`           | `o`              | `o`         | `<value>`    |
-  | `-o<value>`        | `-`           | `o<value>`       | `o`         | `<value>`    |
-  | `--option <value>` | `--`          | `option`         | `option`    | `<value>`    |
-  | `--option=<value>` | `--`          | `option=<value>` | `option`    | `<value>`    |
-
-  > This is a convention used in CLIX, not a standard widely accepted.
-
-  ## The optionality of arguments
+  ### The optionality of arguments
 
   In CLIX, we think:
 
@@ -73,6 +62,8 @@ defmodule CLIX do
   the name (optional argument) does not match its description (requried).
 
   ## Conventions
+
+  ### Abbreviations
 
   To make the code or doc more compact, we use some abbreviations to describe
   positional arguments and optional arguments.
@@ -88,5 +79,17 @@ defmodule CLIX do
     * `opts` - refers to optional arguments
 
   And, when you see a standalone "arguments", it means arguments in the general sense.
+
+  ### The structure of an option
+
+  |                    | option prefix | option string    | option name | option value |
+  | ------------------ | ------------- | ---------------- | ----------- | ------------ |
+  | `-o <value>`       | `-`           | `o`              | `o`         | `<value>`    |
+  | `-o<value>`        | `-`           | `o<value>`       | `o`         | `<value>`    |
+  | `--option <value>` | `--`          | `option`         | `option`    | `<value>`    |
+  | `--option=<value>` | `--`          | `option=<value>` | `option`    | `<value>`    |
+
+  > This is a convention used in CLIX, not a standard widely accepted.
+
   """
 end

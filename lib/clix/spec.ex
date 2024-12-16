@@ -18,25 +18,18 @@ defmodule CLIX.Spec do
 
   @typedoc """
   The parsing spec of a command.
+
+  If the `:help` option isn't set, it will default to the value of `:summary`
+  option.
   """
   @type cmd_spec :: %{
-          name: String.t() | nil,
+          help: String.t() | nil,
           summary: String.t() | nil,
           description: String.t() | nil,
-          help: String.t() | nil,
+          cmds: [{cmd_name(), cmd_spec()}],
           args: [{arg_name(), arg_spec()}],
           opts: [{opt_name(), opt_spec()}],
-          cmds: [{cmd_name(), cmd_spec()}]
-        }
-
-  @type compacted_cmd_spec :: %{
-          name: String.t() | nil,
-          summary: String.t() | nil,
-          description: String.t() | nil,
-          help: String.t() | nil,
-          args: [{arg_name(), arg_spec()}],
-          opts: [{opt_name(), opt_spec()}],
-          cmds: [{cmd_name(), cmd_spec()}]
+          epilogue: String.t() | nil
         }
 
   @typedoc "The type which the argument will be parsed as."
@@ -45,7 +38,15 @@ defmodule CLIX.Spec do
           | :boolean
           | :integer
           | :float
-          | {:custom, (String.t() -> term())}
+          | custom_type()
+
+  @typedoc """
+  Custom type.
+  """
+  @type custom_type :: {
+          :custom,
+          (raw_value :: String.t() -> {:ok, value :: term()} | {:error, reason :: String.t()})
+        }
 
   @typedoc """
   The number of arguments that should be consumed.
@@ -58,6 +59,8 @@ defmodule CLIX.Spec do
   """
   @type nargs :: nil | :"?" | :* | :+
 
+  @type action :: :store | :count | :append
+
   @typedoc "The name of a positional argument."
   @type arg_name :: atom()
 
@@ -66,7 +69,7 @@ defmodule CLIX.Spec do
           optional(:type) => type(),
           optional(:nargs) => nargs(),
           optional(:default) => any(),
-          optional(:value_name) => String.t() | nil,
+          optional(:value_name) => value_name(),
           optional(:help) => String.t() | nil
         }
 
@@ -77,11 +80,13 @@ defmodule CLIX.Spec do
           optional(:short) => String.t() | nil,
           optional(:long) => String.t() | nil,
           optional(:type) => type(),
-          optional(:action) => :store | :count | :append,
+          optional(:action) => action(),
           optional(:default) => any(),
-          optional(:value_name) => String.t() | nil,
+          optional(:value_name) => value_name(),
           optional(:help) => String.t() | nil
         }
+
+  @type value_name :: String.t() | nil
 
   @doc """
   Builds a spec from raw spec.
@@ -101,16 +106,16 @@ defmodule CLIX.Spec do
     default_cmd_spec = %{
       summary: nil,
       description: nil,
-      help: nil,
+      cmds: [],
       args: [],
       opts: [],
-      cmds: []
+      epilogue: nil
     }
 
     cmd_spec =
       default_cmd_spec
       |> Map.merge(cmd_spec)
-      |> put_cmd_name(cmd_name)
+      |> put_cmd_default_help()
 
     cmd_spec =
       cmd_spec
@@ -121,14 +126,8 @@ defmodule CLIX.Spec do
     {cmd_name, cmd_spec}
   end
 
-  defp put_cmd_name(%{name: name} = cmd_spec, _cmd_name) when name !== nil do
-    cmd_spec
-  end
-
-  defp put_cmd_name(cmd_spec, cmd_name) do
-    name = to_string(cmd_name)
-    Map.put(cmd_spec, :name, name)
-  end
+  defp put_cmd_default_help(%{help: _} = cmd_spec), do: cmd_spec
+  defp put_cmd_default_help(cmd_spec), do: Map.put(cmd_spec, :help, cmd_spec.summary)
 
   defp cast_arg_pair({arg_name, arg_spec}) when is_atom(arg_name) and is_map(arg_spec) do
     default_arg_spec = %{
@@ -243,7 +242,7 @@ defmodule CLIX.Spec do
   end
 
   @doc false
-  @spec compact_cmd_spec(t(), [atom()]) :: compacted_cmd_spec()
+  @spec compact_cmd_spec(t(), [atom()]) :: cmd_spec()
   def compact_cmd_spec({_cmd_name, cmd_spec}, subcmd_path) do
     do_compact_cmd_spec(cmd_spec, subcmd_path, {[], []})
   end

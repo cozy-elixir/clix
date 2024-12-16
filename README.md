@@ -1,6 +1,6 @@
 # CLIX
 
-A utility-first CLI framework.
+A utility-first, composable CLI framework.
 
 ## Installation
 

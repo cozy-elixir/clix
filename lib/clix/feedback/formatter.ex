@@ -1,24 +1,32 @@
-defmodule CLIX.Doc.Formatter do
+defmodule CLIX.Feedback.Formatter do
   @moduledoc false
 
   @doc """
   Formats string within given width.
+
+  Trailing whitespaces will be removed.
   """
-  @spec format(String.t(), pos_integer()) :: iolist()
+  @spec format(String.t(), pos_integer()) :: String.t()
   def format(string, width) when is_binary(string) and is_integer(width) do
     string
-    |> split_string(width)
+    |> String.split("\n")
+    |> Enum.map(fn string -> wrap_line(string, width) end)
+    |> List.flatten()
     |> Enum.intersperse("\n")
+    |> to_string()
+    |> String.trim_trailing()
   end
 
   @doc """
   Formats strings into columns, which have fixed widths.
+
+  Trailing whitespaces will be removed.
   """
-  @spec format_columns([{String.t(), pos_integer()}]) :: iolist()
+  @spec format_columns([{String.t(), width :: pos_integer()}]) :: String.t()
   def format_columns([{string, width} | _] = spec) when is_binary(string) and is_integer(width) do
     columns =
       Enum.map(spec, fn {string, width} ->
-        lines = split_string(string, width)
+        lines = wrap_line(string, width)
         lines_count = Enum.count(lines)
         {width, lines, lines_count}
       end)
@@ -27,26 +35,33 @@ defmodule CLIX.Doc.Formatter do
 
     filled_columns =
       Enum.map(columns, fn {width, lines, lines_count} ->
-        existing_lines = Enum.map(lines, fn line -> String.pad_trailing(line, width) end)
-        line = String.duplicate(" ", width)
-        missing_lines_count = required_lines_count - lines_count
-        missing_lines = List.duplicate(line, missing_lines_count)
-        existing_lines ++ missing_lines
+        filled_lines = Enum.map(lines, fn line -> String.pad_trailing(line, width) end)
+
+        placeholder_lines_count = required_lines_count - lines_count
+        placeholder_line = String.duplicate(" ", width)
+        placeholder_lines = List.duplicate(placeholder_line, placeholder_lines_count)
+
+        filled_lines ++ placeholder_lines
       end)
 
     filled_columns
     |> Enum.zip()
     |> Enum.map(&Tuple.to_list/1)
+    |> Enum.map(fn line -> line |> to_string() |> String.trim_trailing() end)
     |> Enum.intersperse("\n")
+    |> to_string()
+    |> String.trim_trailing()
   end
 
-  defp split_string(string, max_width), do: split_string(string, max_width, [])
+  defp wrap_line("", _max_width), do: [""]
 
-  defp split_string("", _max_width, lines), do: Enum.reverse(lines)
+  defp wrap_line(string, max_width), do: wrap_line(string, max_width, [])
 
-  defp split_string(string, max_width, lines) do
+  defp wrap_line("", _max_width, lines), do: Enum.reverse(lines)
+
+  defp wrap_line(string, max_width, lines) do
     {current_line, rest} = split_string_sementically(string, max_width)
-    split_string(rest, max_width, [current_line | lines])
+    wrap_line(rest, max_width, [current_line | lines])
   end
 
   # split string, and trying its best to not break a word

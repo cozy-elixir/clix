@@ -27,7 +27,9 @@ defmodule CLIX.Parser do
       iex>
       iex> # bad argv
       iex> CLIX.Parser.parse(spec, [])
-      {[], %{}, %{debug: false, verbose: 0, to: []}, [missing_arg: :msg]}
+      {[], %{}, %{debug: false, verbose: 0, to: []}, [
+        {:missing_arg, %{message: nil, type: :string, value: nil, value_name: "MSG", nargs: nil}}
+      ]}
       iex>
       iex> # good argv in strict order
       iex> CLIX.Parser.parse(spec, ["--debug", "-vvvv", "-t", "John", "-t", "Dave", "aloha"])
@@ -125,10 +127,15 @@ defmodule CLIX.Parser do
       iex> ]}})
       iex>
       iex> CLIX.Parser.parse(spec, [])
-      {[], %{}, %{}, [{:missing_arg, :src}, {:missing_arg, :dst}]}
+      {[], %{}, %{}, [
+        {:missing_arg, %{message: nil, type: :string, value: nil, nargs: :+, value_name: "SRC"}},
+        {:missing_arg, %{message: nil, type: :string, value: nil, nargs: nil, value_name: "DST"}}
+      ]}
       iex>
       iex> CLIX.Parser.parse(spec, ["src1"])
-      {[], %{src: ["src1"]}, %{}, [{:missing_arg, :dst}]}
+      {[], %{src: ["src1"]}, %{}, [
+        {:missing_arg, %{message: nil, type: :string, value: nil, nargs: nil, value_name: "DST"}}
+      ]}
       iex>
       iex> CLIX.Parser.parse(spec, ["src1", "dst"])
       {[], %{src: ["src1"], dst: "dst"}, %{}, []}
@@ -239,11 +246,16 @@ defmodule CLIX.Parser do
   @long_opt_prefix "--"
 
   @typedoc """
+  A raw command line argument.
+  """
+  @type raw_arg :: String.t()
+
+  @typedoc """
   The list of command line arguments to be parsed.
 
   In general, it's obtained by calling `System.argv/0`.
   """
-  @type argv :: [String.t()]
+  @type argv :: [raw_arg()]
 
   @typedoc """
   The options of parsing.
@@ -256,8 +268,33 @@ defmodule CLIX.Parser do
   @type subcmd_path :: [Spec.cmd_name()]
   @type parsed_args :: %{atom() => any()}
   @type parsed_opts :: %{atom() => any()}
+
+  @typedoc """
+  The errors of parsing.
+  """
   @type errors :: [error()]
-  @type error :: any()
+  @type error ::
+          {:unknown_arg, raw_arg()}
+          | {:missing_arg, arg_error_detail()}
+          | {:invalid_arg, arg_error_detail()}
+          | {:unknown_opt, raw_arg()}
+          | {:missing_opt, opt_error_detail()}
+          | {:invalid_opt, opt_error_detail()}
+  @type arg_error_detail :: %{
+          :value_name => Spec.value_name(),
+          :type => Spec.type(),
+          :nargs => Spec.nargs(),
+          :value => raw_arg() | nil,
+          :message => String.t() | nil
+        }
+  @type opt_error_detail :: %{
+          :prefixed_name => String.t(),
+          :value_name => Spec.value_name(),
+          :type => Spec.type(),
+          :action => Spec.action(),
+          :value => raw_arg() | nil,
+          :message => String.t() | nil
+        }
 
   @doc """
   Parses `argv` with given `spec`.
@@ -386,12 +423,16 @@ defmodule CLIX.Parser do
                 parse_stage1(mode, config, rest_argv, pos_argv, {opt_args, opt_errors})
 
               :error ->
-                error = {:invalid_opt_value, prefixed_opt_name, value}
+                error = {:invalid_opt, build_opt_detail(attrs, nil, prefixed_opt_name, value)}
+                parse_stage1(mode, config, rest_argv, pos_argv, {opt_args, [error | opt_errors]})
+
+              {:error, message} ->
+                error = {:invalid_opt, build_opt_detail(attrs, message, prefixed_opt_name, value)}
                 parse_stage1(mode, config, rest_argv, pos_argv, {opt_args, [error | opt_errors]})
             end
 
           :error ->
-            error = {:missing_opt_value, prefixed_opt_name}
+            error = {:missing_opt, build_opt_detail(attrs, nil, prefixed_opt_name)}
             parse_stage1(mode, config, rest_argv, pos_argv, {opt_args, [error | opt_errors]})
         end
 
@@ -418,12 +459,16 @@ defmodule CLIX.Parser do
                 parse_stage1(mode, config, rest_argv, pos_argv, {opt_args, opt_errors})
 
               :error ->
-                error = {:invalid_opt_value, prefixed_opt_name, value}
+                error = {:invalid_opt, build_opt_detail(attrs, nil, prefixed_opt_name, value)}
+                parse_stage1(mode, config, rest_argv, pos_argv, {opt_args, [error | opt_errors]})
+
+              {:error, message} ->
+                error = {:invalid_opt, build_opt_detail(attrs, message, prefixed_opt_name, value)}
                 parse_stage1(mode, config, rest_argv, pos_argv, {opt_args, [error | opt_errors]})
             end
 
           :error ->
-            error = {:missing_opt_value, prefixed_opt_name}
+            error = {:missing_opt, build_opt_detail(attrs, nil, prefixed_opt_name)}
             parse_stage1(mode, config, rest_argv, pos_argv, {opt_args, [error | opt_errors]})
         end
 
@@ -626,7 +671,10 @@ defmodule CLIX.Parser do
         pos_args
       end
 
-    errors = Enum.map(bad_argv, &{:invalid_arg, key, &1})
+    errors =
+      Enum.map(bad_argv, fn {arg, message} ->
+        {:invalid_arg, build_arg_detail(pos_spec, message, arg)}
+      end)
 
     consume_pos_argv(rest_rules, rest_argv, pos_args, Enum.reverse(errors, pos_errors))
   end
@@ -636,7 +684,8 @@ defmodule CLIX.Parser do
       Enum.reduce(argv, {[], []}, fn arg, {values, bad_argv} ->
         case cast_value(type, arg) do
           {:ok, value} -> {[value | values], bad_argv}
-          :error -> {values, [arg | bad_argv]}
+          :error -> {values, [{arg, nil} | bad_argv]}
+          {:error, message} -> {values, [{arg, message} | bad_argv]}
         end
       end)
 
@@ -666,7 +715,7 @@ defmodule CLIX.Parser do
 
       cond do
         not Map.has_key?(pos_args, key) && required_pos_spec?(pos_spec) ->
-          error = {:missing_arg, key}
+          error = {:missing_arg, build_arg_detail(pos_spec, nil)}
           {pos_args, [error | pos_errors]}
 
         not Map.has_key?(pos_args, key) ->
@@ -724,7 +773,31 @@ defmodule CLIX.Parser do
   defp cast_value({:custom, fun}, value) when is_function(fun, 1) do
     case fun.(value) do
       {:ok, value} -> {:ok, value}
-      :error -> :error
+      {:error, message} -> {:error, message}
     end
   end
+
+  defp build_arg_detail(attrs, message, value \\ nil) do
+    %{
+      value_name: attrs.value_name,
+      type: build_type(attrs.type),
+      nargs: attrs.nargs,
+      value: value,
+      message: message
+    }
+  end
+
+  defp build_opt_detail(attrs, message, prefixed_opt_name, value \\ nil) do
+    %{
+      prefixed_opt_name: prefixed_opt_name,
+      value_name: attrs.value_name,
+      type: build_type(attrs.type),
+      action: attrs.action,
+      value: value,
+      message: message
+    }
+  end
+
+  defp build_type({:custom, _}), do: :custom
+  defp build_type(type), do: type
 end

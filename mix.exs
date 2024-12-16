@@ -2,7 +2,7 @@ defmodule CLIX.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @description "A utility-first CLI framework."
+  @description "A utility-first, composable CLI framework."
   @source_url "https://github.com/cozy-elixir/clix"
 
   def project do
