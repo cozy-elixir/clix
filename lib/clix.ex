@@ -5,10 +5,16 @@ defmodule CLIX do
   Before we begin, let's first talk about the terminology and conventions used
   in CLIX.
 
+  ## The flow of CLIX
+
+    1. use `CLIX.Spec` to build a spec.
+    2. use `CLIX.Parser` to parse argv with the built spec.
+    3. use `CLIX.Doc` to generate docs with the built spec.
+
   ## The arguments
 
-  The arguments is the abbrev of "command line arguments", which is the thing
-  handled by a CLI framework.
+  The arguments is the abbrev of "command line arguments", which is the main
+  thing handled by a CLI framework.
 
   ### Positional arguments
 
@@ -82,13 +88,5 @@ defmodule CLIX do
     * `opts` - refers to optional arguments
 
   And, when you see a standalone "arguments", it means arguments in the general sense.
-
-  ## The flow of CLIX
-
-    1. use `CLIX.Spec` to build a spec.
-    2. use `CLIX.Parser` to parse argv with built spec.
-    3. use `CLIX.Doc` to generate docs with built spec.
-
-  That's it.
   """
 end

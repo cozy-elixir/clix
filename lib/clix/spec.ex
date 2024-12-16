@@ -23,6 +23,17 @@ defmodule CLIX.Spec do
           name: String.t() | nil,
           summary: String.t() | nil,
           description: String.t() | nil,
+          help: String.t() | nil,
+          args: [{arg_name(), arg_spec()}],
+          opts: [{opt_name(), opt_spec()}],
+          cmds: [{cmd_name(), cmd_spec()}]
+        }
+
+  @type compacted_cmd_spec :: %{
+          name: String.t() | nil,
+          summary: String.t() | nil,
+          description: String.t() | nil,
+          help: String.t() | nil,
           args: [{arg_name(), arg_spec()}],
           opts: [{opt_name(), opt_spec()}],
           cmds: [{cmd_name(), cmd_spec()}]
@@ -90,6 +101,7 @@ defmodule CLIX.Spec do
     default_cmd_spec = %{
       summary: nil,
       description: nil,
+      help: nil,
       args: [],
       opts: [],
       cmds: []
@@ -228,5 +240,29 @@ defmodule CLIX.Spec do
 
   defp location(cmd_path, {:opt, opt_name}) when is_list(cmd_path) do
     "opt #{inspect(opt_name)} under the cmd path #{inspect(Enum.reverse(cmd_path))} - "
+  end
+
+  @doc false
+  @spec compact_cmd_spec(t(), [atom()]) :: compacted_cmd_spec()
+  def compact_cmd_spec({_cmd_name, cmd_spec}, subcmd_path) do
+    do_compact_cmd_spec(cmd_spec, subcmd_path, {[], []})
+  end
+
+  defp do_compact_cmd_spec(cmd_spec, [], {args, opts}) do
+    %{args: new_args, opts: new_opts} = cmd_spec
+    args = [new_args | args]
+    opts = [new_opts | opts]
+
+    cmd_spec
+    |> Map.put(:args, args |> Enum.reverse() |> List.flatten())
+    |> Map.put(:opts, opts |> Enum.reverse() |> List.flatten())
+  end
+
+  defp do_compact_cmd_spec(cmd_spec, [subcmd | rest], {args, opts}) do
+    %{args: new_args, opts: new_opts} = cmd_spec
+    args = [new_args | args]
+    opts = [new_opts | opts]
+    subcmd_spec = cmd_spec |> Map.fetch!(:cmds) |> Keyword.fetch!(subcmd)
+    do_compact_cmd_spec(subcmd_spec, rest, {args, opts})
   end
 end

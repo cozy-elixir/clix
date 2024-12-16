@@ -6,7 +6,7 @@ defmodule CLIX.Parser do
 
   It designed to:
 
-    * parse both positional arguments, optional arguments and subcommands
+    * parse both sub-commands, positional arguments, and optional arguments
     * pepare read-to-use result
 
   ## Quick start
@@ -27,17 +27,89 @@ defmodule CLIX.Parser do
       iex>
       iex> # bad argv
       iex> CLIX.Parser.parse(spec, [])
-      {%{}, %{debug: false, verbose: 0, to: []}, [missing_arg: :msg]}
+      {[], %{}, %{debug: false, verbose: 0, to: []}, [missing_arg: :msg]}
       iex>
       iex> # good argv in strict order
       iex> CLIX.Parser.parse(spec, ["--debug", "-vvvv", "-t", "John", "-t", "Dave", "aloha"])
-      {%{msg: "aloha"}, %{debug: true, to: ["John", "Dave"], verbose: 4}, []}
+      {[], %{msg: "aloha"}, %{debug: true, to: ["John", "Dave"], verbose: 4}, []}
       iex>
       iex> # good argv in intermixed order
       iex> CLIX.Parser.parse(spec, ["--debug", "-vvvv", "aloha", "-t", "John", "-t", "Dave", ])
-      {%{msg: "aloha"}, %{debug: true, to: ["John", "Dave"], verbose: 4}, []}
+      {[], %{msg: "aloha"}, %{debug: true, to: ["John", "Dave"], verbose: 4}, []}
 
   Read the doc of `CLIX.Spec` and `CLIX.Parser` for more information.
+
+  ## The parsing of sub-commands
+
+  A sub-command always takes precedence over arguments. It means that a subcommand
+  should always placed after the root command.
+
+  An example cloning `kamal`, which demostrates nested sub-commands, global options, etc.
+
+      iex> # 1. build a spec
+      iex> spec = CLIX.Spec.new({:kamal, %{
+      iex>   cmds: [
+      iex>     setup: %{
+      iex>       help: "Setup all accessories, push the env, and deploy app to servers",
+      iex>       opts: [
+      iex>         skip_push: %{
+      iex>           short: "P",
+      iex>           long: "skip-push",
+      iex>           type: :boolean,
+      iex>           help: "Skip image build and push"
+      iex>         }
+      iex>       ]
+      iex>     },
+      iex>     app: %{
+      iex>       help: "Manage application",
+      iex>       cmds: %{
+      iex>         boot: %{
+      iex>           help: "Boot app on servers (or reboot app if already running)",
+      iex>         },
+      iex>         containers: %{
+      iex>           help: "Show app containers on servers"
+      iex>         }
+      iex>       }
+      iex>     }
+      iex>   ],
+      iex>   opts: [
+      iex>     verbose: %{
+      iex>       short: "v",
+      iex>       long: "verbose",
+      iex>       type: :boolean,
+      iex>       action: :count,
+      iex>       help: "Detailed logging"
+      iex>     },
+      iex>     quiet: %{
+      iex>       short: "q",
+      iex>       long: "quiet",
+      iex>       type: :boolean,
+      iex>       help: "Minimal logging"
+      iex>     }
+      iex>   ]
+      iex> }})
+      iex>
+      iex> # 2. parse argv with spec
+      iex>
+      iex> # root command
+      iex> CLIX.Parser.parse(spec, [])
+      {[], %{}, %{verbose: 0, quiet: false}, []}
+      iex>
+      iex> # sub-command - setup
+      iex> CLIX.Parser.parse(spec, ["setup", "-P"])
+      {[:setup], %{}, %{verbose: 0, quiet: false, skip_push: true}, []}
+      iex>
+      iex> # sub-command - app
+      iex> CLIX.Parser.parse(spec, ["app"])
+      {[:app], %{}, %{verbose: 0, quiet: false}, []}
+      iex>
+      iex> # nested sub-command - app boot
+      iex> CLIX.Parser.parse(spec, ["app", "boot"])
+      {[:app, :boot], %{}, %{verbose: 0, quiet: false}, []}
+      iex>
+      iex> # nested sub-command - app containers
+      iex> CLIX.Parser.parse(spec, ["app", "containers"])
+      {[:app, :containers], %{}, %{verbose: 0, quiet: false}, []}
 
   ## The parsing of positional arguments
 
@@ -49,20 +121,20 @@ defmodule CLIX.Parser do
 
       iex> spec = CLIX.Spec.new({:cp, %{args: [
       iex>   src: %{nargs: :+},
-      iex>    dst: %{}
+      iex>   dst: %{}
       iex> ]}})
       iex>
       iex> CLIX.Parser.parse(spec, [])
-      {%{}, %{}, [{:missing_arg, :src}, {:missing_arg, :dst}]}
+      {[], %{}, %{}, [{:missing_arg, :src}, {:missing_arg, :dst}]}
       iex>
       iex> CLIX.Parser.parse(spec, ["src1"])
-      {%{src: ["src1"]}, %{}, [{:missing_arg, :dst}]}
+      {[], %{src: ["src1"]}, %{}, [{:missing_arg, :dst}]}
       iex>
       iex> CLIX.Parser.parse(spec, ["src1", "dst"])
-      {%{src: ["src1"], dst: "dst"}, %{}, []}
+      {[], %{src: ["src1"], dst: "dst"}, %{}, []}
       iex>
       iex> CLIX.Parser.parse(spec, ["src1", "src2", "dst"])
-      {%{src: ["src1", "src2"], dst: "dst"}, %{}, []}
+      {[], %{src: ["src1", "src2"], dst: "dst"}, %{}, []}
 
   Or, an example cloning `httpie` (`httpie [METHOD] <URL> [REQUEST_ITEM]`):
 
@@ -73,13 +145,13 @@ defmodule CLIX.Parser do
       iex> ]}})
       iex>
       iex> CLIX.Parser.parse(spec, ["https://example.com"])
-      {%{method: "GET", url: "https://example.com", request_items: []}, %{}, []}
+      {[], %{method: "GET", url: "https://example.com", request_items: []}, %{}, []}
       iex>
       iex> CLIX.Parser.parse(spec, ["POST", "https://example.com"])
-      {%{method: "POST", url: "https://example.com", request_items: []}, %{}, []}
+      {[], %{method: "POST", url: "https://example.com", request_items: []}, %{}, []}
       iex>
       iex> CLIX.Parser.parse(spec, ["POST", "https://example.com", "name=Joe", "email=Joe@example.com"])
-      {%{method: "POST", url: "https://example.com", request_items: ["name=Joe", "email=Joe@example.com"]}, %{}, []}
+      {[], %{method: "POST", url: "https://example.com", request_items: ["name=Joe", "email=Joe@example.com"]}, %{}, []}
 
   > The algo is borrowed from
   > Python's [argparse](https://github.com/python/cpython/blob/3.13/Lib/argparse.py).
@@ -143,8 +215,9 @@ defmodule CLIX.Parser do
 
   ### Overview
 
-  When parsing command line arguments, it processes them in 2 stages.
+  When parsing command line arguments, it processes them in multiple stages.
 
+    * stage 0 - parse sub-commands.
     * stage 1 - parse optional arguments and collecting positional arguments.
     * stage 2 - parse args.
 
@@ -179,7 +252,8 @@ defmodule CLIX.Parser do
   @type opt :: {:mode, :intermixed | :strict}
 
   @typedoc "The result of parsing."
-  @type result :: {parsed_args(), parsed_opts(), errors()}
+  @type result :: {subcmd_path(), parsed_args(), parsed_opts(), errors()}
+  @type subcmd_path :: [Spec.cmd_name()]
   @type parsed_args :: %{atom() => any()}
   @type parsed_opts :: %{atom() => any()}
   @type errors :: [error()]
@@ -197,51 +271,31 @@ defmodule CLIX.Parser do
   def parse(spec, argv, opts \\ []) do
     mode = Keyword.get(opts, :mode, :intermixed)
 
-    config = build_config(spec)
+    {subcmd_path, argv} = parse_subcmd_path(spec, argv)
+
+    cmd_spec = Spec.compact_cmd_spec(spec, subcmd_path)
+    config = build_config(cmd_spec)
     {pos_argv, {opt_args, opt_errors}} = parse_stage1(mode, config, argv)
     {pos_args, pos_errors} = parse_stage2(config, pos_argv)
 
     errors = List.flatten([opt_errors, pos_errors])
-    {pos_args, opt_args, errors}
+
+    {subcmd_path, pos_args, opt_args, errors}
   end
 
-  defp build_config({cmd_name, cmd_spec}) do
+  defp build_config(cmd_spec) do
     %{args: args, opts: opts} = cmd_spec
     pos_specs = build_pos_specs(args)
     opt_specs = build_opt_specs(opts)
     {short_opt_specs, long_opt_specs} = group_opt_specs(opts)
 
-    cmd_path = [cmd_name]
-
     %{
-      cmd_path: cmd_path,
       pos_specs: pos_specs,
       opt_specs: opt_specs,
       short_opt_specs: short_opt_specs,
       long_opt_specs: long_opt_specs
     }
   end
-
-  # defp build_config(config, {cmd_name, cmd_spec}) do
-  #   %{args: args, opts: opts} = cmd_spec
-  #   new_pos_specs = build_pos_specs(args)
-  #   new_opt_specs = build_opt_specs(opts)
-  #   {new_short_opt_specs, new_long_opt_specs} = group_opt_specs(opts)
-
-  #   cmd_path = config.cmd_path ++ [cmd_name]
-  #   pos_specs = config.pos_specs ++ new_pos_specs
-  #   opt_specs = Map.merge(config.opt_specs, new_opt_specs)
-  #   short_opt_specs = Map.merge(config.short_opt_specs, new_short_opt_specs)
-  #   long_opt_specs = Map.merge(config.long_opt_specs, new_long_opt_specs)
-
-  #   %{
-  #     cmd_path: cmd_path,
-  #     pos_specs: pos_specs,
-  #     opt_specs: opt_specs,
-  #     short_opt_specs: short_opt_specs,
-  #     long_opt_specs: long_opt_specs
-  #   }
-  # end
 
   defp build_pos_specs(args) do
     Enum.map(args, fn {key, spec} -> Map.put(spec, :key, key) end)
@@ -270,6 +324,31 @@ defmodule CLIX.Parser do
 
       {shorts, longs}
     end)
+  end
+
+  defp parse_subcmd_path(spec, argv) do
+    {_cmd_name, cmd_spec} = spec
+    {subcmd_path, argv} = do_parse_subcmd_path(cmd_spec, argv, [])
+    {Enum.map(subcmd_path, &String.to_existing_atom/1), argv}
+  end
+
+  defp do_parse_subcmd_path(_cmd_spec, [] = argv, subcmd_path) do
+    {Enum.reverse(subcmd_path), argv}
+  end
+
+  defp do_parse_subcmd_path(%{cmds: []}, argv, subcmd_path) do
+    {Enum.reverse(subcmd_path), argv}
+  end
+
+  defp do_parse_subcmd_path(%{cmds: cmds}, [maybe_subcmd | rest_argv] = argv, subcmd_path) do
+    subcmds = Enum.into(cmds, %{}, fn {k, v} -> {to_string(k), v} end)
+
+    if subcmd_spec = Map.get(subcmds, maybe_subcmd) do
+      subcmd = maybe_subcmd
+      do_parse_subcmd_path(subcmd_spec, rest_argv, [subcmd | subcmd_path])
+    else
+      {Enum.reverse(subcmd_path), argv}
+    end
   end
 
   defp parse_stage1(mode, config, argv) do

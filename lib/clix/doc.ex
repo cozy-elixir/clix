@@ -11,6 +11,8 @@ defmodule CLIX.Doc do
   @left_padding_width 2
   @sep_width 2
 
+  @type subcmd_path :: [Spec.cmd_name()]
+
   @doc """
   Generates comprehensive help, which includes the sections of usage, subcommands
   , positional arguments and optional arguments.
@@ -30,18 +32,20 @@ defmodule CLIX.Doc do
 
   [optional arguments]
   ```
-
   """
-  @spec help(Spec.t()) :: String.t()
-  def help(spec, cmd_path \\ []) do
-    {_, cmd_spec} = spec
-
+  @spec help(Spec.t(), subcmd_path()) :: String.t()
+  def help(spec, subcmd_path \\ []) do
+    {cmd_name, _cmd_spec} = spec
     width = width()
+
+    cmd_path = [cmd_name | subcmd_path]
+    cmd_spec = Spec.compact_cmd_spec(spec, subcmd_path)
 
     [
       build_summary(cmd_spec, width),
       build_description(cmd_spec, width),
-      build_usage_line(spec, cmd_path),
+      build_usage_section(cmd_spec, cmd_path),
+      build_cmds_section(cmd_spec, width),
       build_args_section(cmd_spec, width),
       build_opts_section(cmd_spec, width)
     ]
@@ -56,11 +60,10 @@ defmodule CLIX.Doc do
   defp build_description(%{description: nil}, _width), do: nil
   defp build_description(%{description: description}, width), do: Formatter.format(description, width)
 
-  defp build_usage_line(spec, cmd_path) do
-    {cmd_name, cmd_spec} = spec
+  defp build_usage_section(cmd_spec, cmd_path) do
     %{cmds: cmds, args: args, opts: opts} = cmd_spec
 
-    header = "Usage: #{cmd_name}"
+    header = "Usage: #{cmd_path |> Enum.map_join(" ", &to_string/1)}"
 
     parts = [header]
     parts = if cmds != [], do: ["<COMMAND>" | parts], else: parts
@@ -68,6 +71,33 @@ defmodule CLIX.Doc do
     parts = Enum.reduce(args, parts, fn arg, acc -> [build_arg_value_placeholder(arg) | acc] end)
 
     parts |> Enum.reverse() |> Enum.intersperse(" ")
+  end
+
+  defp build_cmds_section(%{cmds: []}, _width), do: nil
+
+  defp build_cmds_section(%{cmds: cmds}, width) do
+    header = "Commands:"
+
+    rows =
+      Enum.map(cmds, fn cmd ->
+        {cmd_name, _} = cmd
+        name = to_string(cmd_name)
+        help = build_help(cmd)
+        ["", name, "", help]
+      end)
+
+    names = Enum.map(rows, &Enum.at(&1, 1))
+
+    names_width = names |> Enum.map(&String.length/1) |> Enum.max()
+    help_width = width - @left_padding_width - names_width - @sep_width
+    widths = [@left_padding_width, names_width, @sep_width, help_width]
+
+    content =
+      rows
+      |> Enum.map(fn row -> Enum.zip(row, widths) |> Formatter.format_columns() end)
+      |> Enum.intersperse("\n")
+
+    [header, "\n", content]
   end
 
   defp build_args_section(cmd_spec, width) do
@@ -78,7 +108,7 @@ defmodule CLIX.Doc do
     rows =
       Enum.map(args, fn arg ->
         placeholder = build_arg_value_placeholder(arg)
-        help = build_arg_help(arg)
+        help = build_help(arg)
         ["", placeholder, "", help]
       end)
 
@@ -104,7 +134,7 @@ defmodule CLIX.Doc do
     rows =
       Enum.map(opts, fn opt ->
         str = build_opt_str(opt)
-        help = build_opt_help(opt)
+        help = build_help(opt)
         ["", str, "", help]
       end)
 
@@ -138,9 +168,6 @@ defmodule CLIX.Doc do
     "<#{value_name}>..."
   end
 
-  defp build_arg_help({_arg_name, %{help: nil}}), do: ""
-  defp build_arg_help({_arg_name, %{help: help}}), do: String.trim_trailing(help)
-
   defp build_opt_str({_opt_name, opt_spec}) do
     %{short: short, long: long, type: type, action: action, value_name: value_name} = opt_spec
 
@@ -171,8 +198,9 @@ defmodule CLIX.Doc do
     to_string([prefixed_opt_name, opt_name_suffix, " ", opt_value])
   end
 
-  defp build_opt_help({_opt_name, %{help: nil}}), do: ""
-  defp build_opt_help({_opt_name, %{help: help}}), do: String.trim_trailing(help)
+  defp build_help(any_spec)
+  defp build_help({_, %{help: nil}}), do: ""
+  defp build_help({_, %{help: help}}), do: String.trim_trailing(help)
 
   defp width do
     case :io.columns() do
