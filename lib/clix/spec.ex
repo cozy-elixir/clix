@@ -2,7 +2,7 @@ defmodule CLIX.Spec do
   @moduledoc """
   The spec builder.
 
-  A spec is the basis for parsing, doc generation, etc.
+  A spec is the basis for parsing, feedback generation, etc.
   """
 
   @typedoc "The spec."
