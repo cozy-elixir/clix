@@ -1,5 +1,8 @@
 # CLIX
 
+[![CI](https://github.com/cozy-elixir/clix/actions/workflows/ci.yml/badge.svg)](https://github.com/cozy-elixir/clix/actions/workflows/ci.yml)
+[![Hex.pm](https://img.shields.io/hexpm/v/clix.svg)](https://hex.pm/packages/clix)
+
 A utility-first, composable CLI framework.
 
 ## Installation
