@@ -226,7 +226,7 @@ defmodule CLIX.Parser do
 
     * stage 0 - parse sub-commands.
     * stage 1 - parse optional arguments and collecting positional arguments.
-    * stage 2 - parse args.
+    * stage 2 - parse positional arguments.
 
   ### Variable names
 
