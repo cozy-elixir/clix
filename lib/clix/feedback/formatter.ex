@@ -9,9 +9,7 @@ defmodule CLIX.Feedback.Formatter do
   @spec format(String.t(), pos_integer()) :: String.t()
   def format(string, width) when is_binary(string) and is_integer(width) do
     string
-    |> String.split("\n")
-    |> Enum.map(fn string -> wrap_line(string, width) end)
-    |> List.flatten()
+    |> wrap_string(width)
     |> Enum.intersperse("\n")
     |> to_string()
     |> String.trim_trailing()
@@ -26,7 +24,7 @@ defmodule CLIX.Feedback.Formatter do
   def format_columns([{string, width} | _] = spec) when is_binary(string) and is_integer(width) do
     columns =
       Enum.map(spec, fn {string, width} ->
-        lines = wrap_line(string, width)
+        lines = wrap_string(string, width)
         lines_count = Enum.count(lines)
         {width, lines, lines_count}
       end)
@@ -51,6 +49,13 @@ defmodule CLIX.Feedback.Formatter do
     |> Enum.intersperse("\n")
     |> to_string()
     |> String.trim_trailing()
+  end
+
+  defp wrap_string(string, width) do
+    string
+    |> String.split("\n")
+    |> Enum.map(fn string -> wrap_line(string, width) end)
+    |> List.flatten()
   end
 
   defp wrap_line("", _max_width), do: [""]
